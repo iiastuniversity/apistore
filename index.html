@@ -35,6 +35,7 @@
       <button id="exportBtn" class="btn">Export</button>
       <button id="importBtn" class="btn">Import</button>
       <button id="themeBtn" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      <button id="lockBtn" class="btn lock-btn" title="Lock">&#128274; Lock</button>
       <input type="file" id="importFile" accept="application/json" hidden />
     </div>
   </header>
@@ -77,9 +78,9 @@
             <button type="button" id="toggleFormKey" class="eye">&#128065;</button>
           </div>
         </label>
-        <label>Model
-          <input type="text" id="fModel" list="modelList" placeholder="e.g. gpt-4o, claude-3-5-sonnet" />
-          <datalist id="modelList"></datalist>
+        <label>Model &amp; Display Name
+          <div id="modelList" class="model-list"></div>
+          <button type="button" id="addModelRow" class="btn add-model-btn">+ Add Model</button>
         </label>
         <div class="row">
           <label>Website / Provider
@@ -101,7 +102,20 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="lockScreen" class="lock-screen" hidden>
+    <div class="lock-card" id="lockCard">
+      <div class="lock-icon">&#128274;</div>
+      <h2>Private Vault</h2>
+      <p>This vault is private. Enter the access code to view the saved API keys.</p>
+      <input type="password" id="gateInput" placeholder="Access code" autocomplete="current-password" />
+      <button id="gateUnlock" class="btn btn-primary">Unlock</button>
+      <p id="gateHint" class="gate-hint"></p>
+      <div class="request-box">
+        <a id="requestLink" href="#">&#9993; Request access from owner</a>
+        <p class="gate-hint">Opens your email app — the owner will grant access.</p>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

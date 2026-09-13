@@ -1,6 +1,12 @@
 const STORAGE_KEY = 'api_key_vault_v1';
 const THEME_KEY = 'api_key_vault_theme';
 
+const ACCESS = {
+  owner: 'DHDipu',
+  email: 'iiastuniversity@gmail.com',
+  hash: 'bf00031ecccbda18f83e00f0fd82ca1e58caf34b9b1c0f22c9424e2d3ca6516d',
+};
+
 const state = {
   keys: [],
   query: '',
@@ -28,15 +34,22 @@ const els = {
   editId: $('#editId'),
   fName: $('#fName'),
   fKey: $('#fKey'),
-  fModel: $('#fModel'),
+  modelList: $('#modelList'),
+  addModelRow: $('#addModelRow'),
   fSite: $('#fSite'),
   fCategory: $('#fCategory'),
   fNotes: $('#fNotes'),
   categoryList: $('#categoryList'),
-  modelList: $('#modelList'),
   cancelBtn: $('#cancelBtn'),
   toggleFormKey: $('#toggleFormKey'),
   themeBtn: $('#themeBtn'),
+  lockBtn: $('#lockBtn'),
+  lockScreen: $('#lockScreen'),
+  lockCard: $('#lockCard'),
+  gateInput: $('#gateInput'),
+  gateUnlock: $('#gateUnlock'),
+  gateHint: $('#gateHint'),
+  requestLink: $('#requestLink'),
   toast: $('#toast'),
 };
 
@@ -128,7 +141,8 @@ function getFiltered() {
   return state.keys.filter((k) => {
     if (state.category && (k.category || '') !== state.category) return false;
     if (!q) return true;
-    return [k.name, k.model, k.site, k.category, k.notes, k.key]
+    const models = (k.models || []).map((m) => `${m.name} ${m.label}`).join(' ');
+    return [k.name, models, k.site, k.category, k.notes, k.key]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
@@ -141,9 +155,6 @@ function renderCategories() {
     cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   els.filterCategory.value = state.category;
   els.categoryList.innerHTML = cats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
-
-  const models = [...new Set(state.keys.map((k) => (k.model || '').trim()).filter(Boolean))].sort();
-  els.modelList.innerHTML = models.map((m) => `<option value="${escapeHtml(m)}"></option>`).join('');
 }
 
 function render() {
@@ -156,14 +167,21 @@ function render() {
   els.list.innerHTML = items
     .map((k) => {
       const shown = state.revealed;
+      const modelChips = (k.models || [])
+        .filter((m) => m.name || m.label)
+        .map(
+          (m) =>
+            `<span class="model-chip"><b>${escapeHtml(m.name || '—')}</b>${m.label ? ` <span class="model-label">${escapeHtml(m.label)}</span>` : ''}</span>`
+        )
+        .join('');
       return `
       <article class="card" data-id="${k.id}">
         <div class="card-head">
           <div>
             <div class="card-title">${escapeHtml(k.name)}</div>
-            ${k.model ? `<div class="card-model">&#129302; ${escapeHtml(k.model)}</div>` : ''}
             ${k.site ? `<div class="card-site">${escapeHtml(k.site)}</div>` : ''}
-          </div>          <div class="card-actions">
+          </div>
+          <div class="card-actions">
             <button class="icon-btn" data-action="toggle" title="Show/Hide">&#128065;</button>
             <button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
             <button class="icon-btn" data-action="delete" title="Delete">&#128465;</button>
@@ -173,6 +191,7 @@ function render() {
           <span class="key-text ${shown ? '' : 'hidden'}" data-raw="${escapeHtml(k.key)}">${escapeHtml(shown ? k.key : maskKey(k.key))}</span>
           <button class="icon-btn" data-action="copy" title="Copy">&#128203;</button>
         </div>
+        ${modelChips ? `<div class="model-chips">&#129302; ${modelChips}</div>` : ''}
         ${k.category ? `<span class="badge">${escapeHtml(k.category)}</span>` : ''}
         ${k.notes ? `<div class="card-notes">${escapeHtml(k.notes)}</div>` : ''}
       </article>`;
@@ -184,20 +203,44 @@ function render() {
   }
 }
 
+function addModelRow(name = '', label = '') {
+  const row = document.createElement('div');
+  row.className = 'model-row';
+  row.innerHTML = `
+    <input type="text" class="model-name" placeholder="Model name (e.g. gpt-4o)" value="${escapeHtml(name)}" />
+    <input type="text" class="model-label" placeholder="Display name (e.g. GPT-4o)" value="${escapeHtml(label)}" />
+    <button type="button" class="icon-btn remove-model" title="Remove">&#128465;</button>`;
+  row.querySelector('.remove-model').addEventListener('click', () => row.remove());
+  els.modelList.appendChild(row);
+}
+
+function readModelRows() {
+  return [...els.modelList.querySelectorAll('.model-row')]
+    .map((row) => ({
+      name: row.querySelector('.model-name').value.trim(),
+      label: row.querySelector('.model-label').value.trim(),
+    }))
+    .filter((m) => m.name || m.label);
+}
+
 function openModal(entry = null) {
   els.form.reset();
+  els.modelList.innerHTML = '';
   if (entry) {
     els.modalTitle.textContent = 'Edit API Key';
     els.editId.value = entry.id;
     els.fName.value = entry.name;
     els.fKey.value = entry.key;
-    els.fModel.value = entry.model || '';
     els.fSite.value = entry.site || '';
     els.fCategory.value = entry.category || '';
     els.fNotes.value = entry.notes || '';
+    const models = entry.models || [];
+    if (models.length === 0) addModelRow();
+    else models.forEach((m) => addModelRow(m.name, m.label));
   } else {
     els.modalTitle.textContent = 'Add API Key';
     els.editId.value = '';
+    addModelRow();
   }
   els.fKey.type = 'text';
   els.modal.hidden = false;
@@ -214,7 +257,7 @@ function handleSubmit(e) {
   const data = {
     name: els.fName.value.trim(),
     key: els.fKey.value.trim(),
-    model: els.fModel.value.trim(),
+    models: readModelRows(),
     site: els.fSite.value.trim(),
     category: els.fCategory.value.trim(),
     notes: els.fNotes.value.trim(),
@@ -296,7 +339,11 @@ function importData(file) {
           id: item.id || uid(),
           name: item.name || 'Untitled',
           key: item.key,
-          model: item.model || '',
+          models: Array.isArray(item.models)
+            ? item.models
+            : item.model
+              ? [{ name: item.model, label: '' }]
+              : [],
           site: item.site || '',
           category: item.category || '',
           notes: item.notes || '',
@@ -316,13 +363,70 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function showGate() {
+  els.lockScreen.hidden = false;
+  setTimeout(() => els.gateInput.focus(), 50);
+}
+
+function hideGate() {
+  els.lockScreen.hidden = true;
+  els.gateInput.value = '';
+  els.gateHint.textContent = '';
+}
+
+async function tryUnlock() {
+  const code = els.gateInput.value;
+  if (!code) return;
+  const hash = await sha256(code);
+  if (hash === ACCESS.hash) {
+    sessionStorage.setItem('api_key_vault_unlocked', '1');
+    hideGate();
+    toast('Unlocked');
+  } else {
+    els.gateHint.textContent = 'Wrong access code. Try again.';
+    els.lockCard.classList.add('shake');
+    setTimeout(() => els.lockCard.classList.remove('shake'), 320);
+    els.gateInput.value = '';
+  }
+}
+
+function lockNow() {
+  sessionStorage.removeItem('api_key_vault_unlocked');
+  state.revealed = false;
+  render();
+  showGate();
+}
+
+function setupRequestLink() {
+  const subject = encodeURIComponent('Request to access you API website');
+  const body = encodeURIComponent(
+    'Hello,\n\nI would like to request access to your API Key Vault website.\n\nMy email: \nPurpose: \n\nThank you.'
+  );
+  els.requestLink.href = `mailto:${ACCESS.email}?subject=${subject}&body=${body}`;
+}
+
+function isUnlocked() {
+  return sessionStorage.getItem('api_key_vault_unlocked') === '1';
+}
+
 function init() {
   initTheme();
   load();
   renderCategories();
   render();
+  setupRequestLink();
 
   els.addBtn.addEventListener('click', () => openModal());
+  els.addModelRow.addEventListener('click', () => {
+    addModelRow();
+    const rows = els.modelList.querySelectorAll('.model-row');
+    rows[rows.length - 1].querySelector('.model-name').focus();
+  });
   els.cancelBtn.addEventListener('click', closeModal);
   els.form.addEventListener('submit', handleSubmit);
   els.list.addEventListener('click', onListClick);
@@ -355,11 +459,17 @@ function init() {
 
   els.exportBtn.addEventListener('click', exportData);
   els.themeBtn.addEventListener('click', toggleTheme);
+  els.lockBtn.addEventListener('click', lockNow);
   els.importBtn.addEventListener('click', () => els.importFile.click());
   els.importFile.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) importData(file);
     e.target.value = '';
+  });
+
+  els.gateUnlock.addEventListener('click', tryUnlock);
+  els.gateInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tryUnlock();
   });
 
   els.wipeBtn.addEventListener('click', () => {
@@ -372,6 +482,8 @@ function init() {
       toast('All data deleted');
     }
   });
+
+  if (!isUnlocked()) showGate();
 }
 
 init();
