@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'api_key_vault_v1';
+const THEME_KEY = 'api_key_vault_theme';
 
 const state = {
   keys: [],
@@ -33,8 +34,27 @@ const els = {
   categoryList: $('#categoryList'),
   cancelBtn: $('#cancelBtn'),
   toggleFormKey: $('#toggleFormKey'),
+  themeBtn: $('#themeBtn'),
   toast: $('#toast'),
 };
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  els.themeBtn.innerHTML = theme === 'light' ? '&#127774;' : '&#127769;';
+  els.themeBtn.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+}
 
 function load() {
   try {
@@ -289,6 +309,7 @@ function importData(file) {
 }
 
 function init() {
+  initTheme();
   load();
   renderCategories();
   render();
@@ -325,6 +346,7 @@ function init() {
   });
 
   els.exportBtn.addEventListener('click', exportData);
+  els.themeBtn.addEventListener('click', toggleTheme);
   els.importBtn.addEventListener('click', () => els.importFile.click());
   els.importFile.addEventListener('change', (e) => {
     const file = e.target.files[0];
