@@ -1,0 +1,92 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>API Key Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128273;</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">&#128273;</span>
+      <div>
+        <h1>API Key Vault</h1>
+        <p id="stats" class="stats">0 keys saved</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="addBtn" class="btn btn-primary">+ Add Key</button>
+      <button id="exportBtn" class="btn">Export</button>
+      <button id="importBtn" class="btn">Import</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="search" id="search" placeholder="Search by name, site, provider or key..." />
+    </div>
+    <select id="filterCategory">
+      <option value="">All categories</option>
+    </select>
+    <button id="toggleKeys" class="btn">Reveal all</button>
+  </div>
+
+  <main id="list" class="grid"></main>
+
+  <div id="empty" class="empty" hidden>
+    <div class="empty-icon">&#128273;</div>
+    <h2>No API keys yet</h2>
+    <p>Click <b>+ Add Key</b> to store your first API key. Everything stays in your browser.</p>
+  </div>
+
+  <footer class="footer">
+    <span>&#128274; All data is stored locally in your browser (localStorage). Nothing is uploaded anywhere.</span>
+    <button id="wipeBtn" class="link-danger">Delete all data</button>
+  </footer>
+
+  <div id="modal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2 id="modalTitle">Add API Key</h2>
+      <form id="form">
+        <input type="hidden" id="editId" />
+        <label>Name *
+          <input type="text" id="fName" placeholder="e.g. OpenAI Production" required />
+        </label>
+        <label>API Key *
+          <div class="key-input">
+            <input type="text" id="fKey" placeholder="sk-..." required autocomplete="off" spellcheck="false" />
+            <button type="button" id="toggleFormKey" class="eye">&#128065;</button>
+          </div>
+        </label>
+        <div class="row">
+          <label>Website / Provider
+            <input type="text" id="fSite" placeholder="e.g. platform.openai.com" />
+          </label>
+          <label>Category
+            <input type="text" id="fCategory" list="categoryList" placeholder="e.g. AI, Maps" />
+            <datalist id="categoryList"></datalist>
+          </label>
+        </div>
+        <label>Notes
+          <textarea id="fNotes" rows="2" placeholder="Optional notes..."></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="cancelBtn" class="btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
