@@ -28,10 +28,12 @@ const els = {
   editId: $('#editId'),
   fName: $('#fName'),
   fKey: $('#fKey'),
+  fModel: $('#fModel'),
   fSite: $('#fSite'),
   fCategory: $('#fCategory'),
   fNotes: $('#fNotes'),
   categoryList: $('#categoryList'),
+  modelList: $('#modelList'),
   cancelBtn: $('#cancelBtn'),
   toggleFormKey: $('#toggleFormKey'),
   themeBtn: $('#themeBtn'),
@@ -126,7 +128,7 @@ function getFiltered() {
   return state.keys.filter((k) => {
     if (state.category && (k.category || '') !== state.category) return false;
     if (!q) return true;
-    return [k.name, k.site, k.category, k.notes, k.key]
+    return [k.name, k.model, k.site, k.category, k.notes, k.key]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
@@ -139,6 +141,9 @@ function renderCategories() {
     cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   els.filterCategory.value = state.category;
   els.categoryList.innerHTML = cats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
+
+  const models = [...new Set(state.keys.map((k) => (k.model || '').trim()).filter(Boolean))].sort();
+  els.modelList.innerHTML = models.map((m) => `<option value="${escapeHtml(m)}"></option>`).join('');
 }
 
 function render() {
@@ -156,9 +161,9 @@ function render() {
         <div class="card-head">
           <div>
             <div class="card-title">${escapeHtml(k.name)}</div>
+            ${k.model ? `<div class="card-model">&#129302; ${escapeHtml(k.model)}</div>` : ''}
             ${k.site ? `<div class="card-site">${escapeHtml(k.site)}</div>` : ''}
-          </div>
-          <div class="card-actions">
+          </div>          <div class="card-actions">
             <button class="icon-btn" data-action="toggle" title="Show/Hide">&#128065;</button>
             <button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
             <button class="icon-btn" data-action="delete" title="Delete">&#128465;</button>
@@ -186,6 +191,7 @@ function openModal(entry = null) {
     els.editId.value = entry.id;
     els.fName.value = entry.name;
     els.fKey.value = entry.key;
+    els.fModel.value = entry.model || '';
     els.fSite.value = entry.site || '';
     els.fCategory.value = entry.category || '';
     els.fNotes.value = entry.notes || '';
@@ -208,6 +214,7 @@ function handleSubmit(e) {
   const data = {
     name: els.fName.value.trim(),
     key: els.fKey.value.trim(),
+    model: els.fModel.value.trim(),
     site: els.fSite.value.trim(),
     category: els.fCategory.value.trim(),
     notes: els.fNotes.value.trim(),
@@ -289,6 +296,7 @@ function importData(file) {
           id: item.id || uid(),
           name: item.name || 'Untitled',
           key: item.key,
+          model: item.model || '',
           site: item.site || '',
           category: item.category || '',
           notes: item.notes || '',
