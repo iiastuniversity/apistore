@@ -106,13 +106,25 @@
     <div class="lock-card" id="lockCard">
       <div class="lock-icon">&#128274;</div>
       <h2>Private Vault</h2>
-      <p>This vault is private. Enter the access code to view the saved API keys.</p>
-      <input type="password" id="gateInput" placeholder="Access code" autocomplete="current-password" />
-      <button id="gateUnlock" class="btn btn-primary">Unlock</button>
+      <p>Sign in as admin, or use a one-time backup code to view the saved API keys.</p>
+
+      <div id="loginForm">
+        <input type="text" id="adminUser" placeholder="Username" autocomplete="username" />
+        <input type="password" id="adminPass" placeholder="Password" autocomplete="current-password" />
+        <button id="loginBtn" class="btn btn-primary">Sign in</button>
+      </div>
+
+      <div id="codeForm" hidden>
+        <input type="text" id="backupCode" placeholder="Backup code (VAULT-XXXX-XXXX)" autocomplete="off" spellcheck="false" />
+        <button id="codeBtn" class="btn btn-primary">Unlock with code</button>
+      </div>
+
       <p id="gateHint" class="gate-hint"></p>
+      <button type="button" id="switchMode" class="link-toggle">Use a backup code instead</button>
+
       <div class="request-box">
-        <a id="requestLink" href="#">&#9993; Request access from owner</a>
-        <p class="gate-hint">Opens your email app — the owner will grant access.</p>
+        <a id="requestLink" href="#" target="_blank" rel="noopener">&#9993; Request access from owner</a>
+        <p class="gate-hint">Opens Gmail in your browser to email the owner.</p>
       </div>
     </div>
   </div>

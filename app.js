@@ -3,9 +3,23 @@ const THEME_KEY = 'api_key_vault_theme';
 
 const ACCESS = {
   owner: 'DHDipu',
+  username: 'admin',
   email: 'iiastuniversity@gmail.com',
-  hash: 'bf00031ecccbda18f83e00f0fd82ca1e58caf34b9b1c0f22c9424e2d3ca6516d',
+  adminHash: 'bf00031ecccbda18f83e00f0fd82ca1e58caf34b9b1c0f22c9424e2d3ca6516d',
 };
+
+const BACKUP_CODE_HASHES = [
+  'c54d4a7138ca1ace1e33100b1ef7523a107553f3c89da1c738030f6bbf188d63',
+  '078ba93606d7c067600b42f46734ba6358c3e1970a0ff6b51f70d55d02eb395c',
+  '2e9cc373673f83b135bdf0d57cc43ade2d2ae311376292b3e80d93260ff2c8c8',
+  '39ead8c7b413fcd858f1f4948608477eda5e4434a2215cf4b48411005a75a127',
+  'cb01f477a0380ca57d583ffe6dcf4a169f5d4b65e96d1b2e44e1eba96f5b7a78',
+  'd5f6c3219c4e45b741a1ead2e285a0de242edcd7e7dd02a039f940c313cd471d',
+  'd7fd370355b3fce60289811b21195ff1568efaf095862f7dc3fa5a6c1343f0ae',
+  '48d8a770d37d506c81f39fca7493db3f089878e049e79780635a56fcefb9fb54',
+  '29c5b108eeff25a2bb3b69c4eedf1638f829d6ec954f7409b856433de6df5a5b',
+  '31a0c46f2b50962939a0efb0d483b0ec9753bfbc95764f9645b223a663781628',
+];
 
 const state = {
   keys: [],
@@ -46,8 +60,14 @@ const els = {
   lockBtn: $('#lockBtn'),
   lockScreen: $('#lockScreen'),
   lockCard: $('#lockCard'),
-  gateInput: $('#gateInput'),
-  gateUnlock: $('#gateUnlock'),
+  loginForm: $('#loginForm'),
+  adminUser: $('#adminUser'),
+  adminPass: $('#adminPass'),
+  loginBtn: $('#loginBtn'),
+  codeForm: $('#codeForm'),
+  backupCode: $('#backupCode'),
+  codeBtn: $('#codeBtn'),
+  switchMode: $('#switchMode'),
   gateHint: $('#gateHint'),
   requestLink: $('#requestLink'),
   toast: $('#toast'),
@@ -370,29 +390,64 @@ async function sha256(text) {
 
 function showGate() {
   els.lockScreen.hidden = false;
-  setTimeout(() => els.gateInput.focus(), 50);
+  setMode('login');
+  setTimeout(() => els.adminUser.focus(), 50);
 }
 
 function hideGate() {
   els.lockScreen.hidden = true;
-  els.gateInput.value = '';
+  els.adminUser.value = '';
+  els.adminPass.value = '';
+  els.backupCode.value = '';
   els.gateHint.textContent = '';
 }
 
-async function tryUnlock() {
-  const code = els.gateInput.value;
-  if (!code) return;
-  const hash = await sha256(code);
-  if (hash === ACCESS.hash) {
-    sessionStorage.setItem('api_key_vault_unlocked', '1');
-    hideGate();
-    toast('Unlocked');
+function setMode(mode) {
+  const login = mode === 'login';
+  els.loginForm.hidden = !login;
+  els.codeForm.hidden = login;
+  els.switchMode.textContent = login ? 'Use a backup code instead' : 'Back to admin sign in';
+  els.gateHint.textContent = '';
+  setTimeout(() => (login ? els.adminUser : els.backupCode).focus(), 50);
+}
+
+function failGate(msg) {
+  els.gateHint.textContent = msg;
+  els.lockCard.classList.add('shake');
+  setTimeout(() => els.lockCard.classList.remove('shake'), 320);
+}
+
+async function tryLogin() {
+  const user = els.adminUser.value.trim();
+  const pass = els.adminPass.value;
+  if (!user || !pass) return failGate('Enter username and password.');
+  const hash = await sha256(pass);
+  if (user.toLowerCase() === ACCESS.username.toLowerCase() && hash === ACCESS.adminHash) {
+    unlockVault('Signed in as admin');
   } else {
-    els.gateHint.textContent = 'Wrong access code. Try again.';
-    els.lockCard.classList.add('shake');
-    setTimeout(() => els.lockCard.classList.remove('shake'), 320);
-    els.gateInput.value = '';
+    els.adminPass.value = '';
+    failGate('Wrong username or password.');
   }
+}
+
+async function tryBackupCode() {
+  const code = els.backupCode.value.trim().toUpperCase();
+  if (!code) return failGate('Enter a backup code.');
+  const hash = await sha256(code);
+  const idx = BACKUP_CODE_HASHES.indexOf(hash);
+  if (idx === -1) {
+    els.backupCode.value = '';
+    return failGate('Invalid or already-used backup code.');
+  }
+  BACKUP_CODE_HASHES.splice(idx, 1);
+  localStorage.setItem('api_key_vault_codes', JSON.stringify(BACKUP_CODE_HASHES));
+  unlockVault('Unlocked with backup code');
+}
+
+function unlockVault(msg) {
+  sessionStorage.setItem('api_key_vault_unlocked', '1');
+  hideGate();
+  toast(msg);
 }
 
 function lockNow() {
@@ -407,16 +462,31 @@ function setupRequestLink() {
   const body = encodeURIComponent(
     'Hello,\n\nI would like to request access to your API Key Vault website.\n\nMy email: \nPurpose: \n\nThank you.'
   );
-  els.requestLink.href = `mailto:${ACCESS.email}?subject=${subject}&body=${body}`;
+  els.requestLink.href =
+    `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ACCESS.email)}` +
+    `&su=${subject}&body=${body}`;
 }
 
 function isUnlocked() {
   return sessionStorage.getItem('api_key_vault_unlocked') === '1';
 }
 
+function loadConsumedCodes() {
+  try {
+    const raw = localStorage.getItem('api_key_vault_codes');
+    if (!raw) return;
+    const remaining = JSON.parse(raw);
+    if (Array.isArray(remaining)) {
+      BACKUP_CODE_HASHES.length = 0;
+      BACKUP_CODE_HASHES.push(...remaining);
+    }
+  } catch {}
+}
+
 function init() {
   initTheme();
   load();
+  loadConsumedCodes();
   renderCategories();
   render();
   setupRequestLink();
@@ -467,11 +537,17 @@ function init() {
     e.target.value = '';
   });
 
-  els.gateUnlock.addEventListener('click', tryUnlock);
-  els.gateInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') tryUnlock();
+  els.loginBtn.addEventListener('click', tryLogin);
+  els.codeBtn.addEventListener('click', tryBackupCode);
+  els.switchMode.addEventListener('click', () => {
+    setMode(els.loginForm.hidden ? 'login' : 'code');
   });
-
+  els.adminPass.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tryLogin();
+  });
+  els.backupCode.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tryBackupCode();
+  });
   els.wipeBtn.addEventListener('click', () => {
     if (state.keys.length === 0) return toast('No data to delete', true);
     if (confirm('Delete ALL saved API keys? This cannot be undone.')) {

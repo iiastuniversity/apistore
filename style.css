@@ -352,6 +352,20 @@ form input, form textarea {
 }
 .request-box a { color: var(--primary); font-weight: 600; text-decoration: none; word-break: break-all; }
 .request-box a:hover { text-decoration: underline; }
+.link-toggle {
+  display: block;
+  margin: 4px auto 0;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-toggle:hover { opacity: 0.8; }
+#loginForm input, #codeForm input { margin-bottom: 10px; }
+#loginForm .btn, #codeForm .btn { margin-top: 2px; }
 .gate-hint { margin-top: 10px; font-size: 12px; }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 .lock-card.shake { animation: shake 0.3s; }
