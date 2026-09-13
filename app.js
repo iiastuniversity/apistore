@@ -24,7 +24,6 @@ const BACKUP_CODE_HASHES = [
 const state = {
   keys: [],
   query: '',
-  category: '',
   revealed: false,
 };
 
@@ -35,7 +34,6 @@ const els = {
   empty: $('#empty'),
   stats: $('#stats'),
   search: $('#search'),
-  filterCategory: $('#filterCategory'),
   toggleKeys: $('#toggleKeys'),
   addBtn: $('#addBtn'),
   exportBtn: $('#exportBtn'),
@@ -51,9 +49,8 @@ const els = {
   modelList: $('#modelList'),
   addModelRow: $('#addModelRow'),
   fSite: $('#fSite'),
-  fCategory: $('#fCategory'),
+  fBaseUrl: $('#fBaseUrl'),
   fNotes: $('#fNotes'),
-  categoryList: $('#categoryList'),
   cancelBtn: $('#cancelBtn'),
   toggleFormKey: $('#toggleFormKey'),
   themeBtn: $('#themeBtn'),
@@ -63,6 +60,7 @@ const els = {
   loginForm: $('#loginForm'),
   adminUser: $('#adminUser'),
   adminPass: $('#adminPass'),
+  toggleAdminPass: $('#toggleAdminPass'),
   loginBtn: $('#loginBtn'),
   codeForm: $('#codeForm'),
   backupCode: $('#backupCode'),
@@ -81,8 +79,7 @@ function applyTheme(theme) {
 
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+  applyTheme(saved || 'dark');
 }
 
 function toggleTheme() {
@@ -159,22 +156,15 @@ function maskKey(key) {
 function getFiltered() {
   const q = state.query.trim().toLowerCase();
   return state.keys.filter((k) => {
-    if (state.category && (k.category || '') !== state.category) return false;
     if (!q) return true;
     const models = (k.models || []).map((m) => `${m.name} ${m.label}`).join(' ');
-    return [k.name, models, k.site, k.category, k.notes, k.key]
+    return [k.name, models, k.site, k.baseUrl, k.notes, k.key]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
 }
 
 function renderCategories() {
-  const cats = [...new Set(state.keys.map((k) => (k.category || '').trim()).filter(Boolean))].sort();
-  els.filterCategory.innerHTML =
-    '<option value="">All categories</option>' +
-    cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  els.filterCategory.value = state.category;
-  els.categoryList.innerHTML = cats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
 }
 
 function render() {
@@ -212,7 +202,7 @@ function render() {
           <button class="icon-btn" data-action="copy" title="Copy">&#128203;</button>
         </div>
         ${modelChips ? `<div class="model-chips">&#129302; ${modelChips}</div>` : ''}
-        ${k.category ? `<span class="badge">${escapeHtml(k.category)}</span>` : ''}
+        ${k.baseUrl ? `<div class="card-baseurl">&#128279; <span>${escapeHtml(k.baseUrl)}</span></div>` : ''}
         ${k.notes ? `<div class="card-notes">${escapeHtml(k.notes)}</div>` : ''}
       </article>`;
     })
@@ -252,7 +242,7 @@ function openModal(entry = null) {
     els.fName.value = entry.name;
     els.fKey.value = entry.key;
     els.fSite.value = entry.site || '';
-    els.fCategory.value = entry.category || '';
+    els.fBaseUrl.value = entry.baseUrl || '';
     els.fNotes.value = entry.notes || '';
     const models = entry.models || [];
     if (models.length === 0) addModelRow();
@@ -279,7 +269,7 @@ function handleSubmit(e) {
     key: els.fKey.value.trim(),
     models: readModelRows(),
     site: els.fSite.value.trim(),
-    category: els.fCategory.value.trim(),
+    baseUrl: els.fBaseUrl.value.trim(),
     notes: els.fNotes.value.trim(),
   };
   if (!data.name || !data.key) return;
@@ -365,7 +355,7 @@ function importData(file) {
               ? [{ name: item.model, label: '' }]
               : [],
           site: item.site || '',
-          category: item.category || '',
+          baseUrl: item.baseUrl || '',
           notes: item.notes || '',
           createdAt: item.createdAt || Date.now(),
         });
@@ -513,11 +503,6 @@ function init() {
     render();
   });
 
-  els.filterCategory.addEventListener('change', (e) => {
-    state.category = e.target.value;
-    render();
-  });
-
   els.toggleKeys.addEventListener('click', () => {
     state.revealed = !state.revealed;
     render();
@@ -538,6 +523,9 @@ function init() {
   });
 
   els.loginBtn.addEventListener('click', tryLogin);
+  els.toggleAdminPass.addEventListener('click', () => {
+    els.adminPass.type = els.adminPass.type === 'password' ? 'text' : 'password';
+  });
   els.codeBtn.addEventListener('click', tryBackupCode);
   els.switchMode.addEventListener('click', () => {
     setMode(els.loginForm.hidden ? 'login' : 'code');

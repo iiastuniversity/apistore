@@ -13,8 +13,7 @@
   (function () {
     try {
       var saved = localStorage.getItem('api_key_vault_theme');
-      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.dataset.theme = saved || 'dark';
     } catch (e) {
       document.documentElement.dataset.theme = 'dark';
     }
@@ -43,11 +42,8 @@
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input type="search" id="search" placeholder="Search by name, site, provider or key..." />
+      <input type="search" id="search" placeholder="Search by name, model, base URL, provider or key..." />
     </div>
-    <select id="filterCategory">
-      <option value="">All categories</option>
-    </select>
     <button id="toggleKeys" class="btn">Reveal all</button>
   </div>
 
@@ -86,9 +82,8 @@
           <label>Website / Provider
             <input type="text" id="fSite" placeholder="e.g. platform.openai.com" />
           </label>
-          <label>Category
-            <input type="text" id="fCategory" list="categoryList" placeholder="e.g. AI, Maps" />
-            <datalist id="categoryList"></datalist>
+          <label>Base URL
+            <input type="text" id="fBaseUrl" placeholder="e.g. https://api.openai.com/v1" />
           </label>
         </div>
         <label>Notes
@@ -110,7 +105,10 @@
 
       <div id="loginForm">
         <input type="text" id="adminUser" placeholder="Username" autocomplete="username" />
-        <input type="password" id="adminPass" placeholder="Password" autocomplete="current-password" />
+        <div class="key-input">
+          <input type="password" id="adminPass" placeholder="Password" autocomplete="current-password" />
+          <button type="button" id="toggleAdminPass" class="eye">&#128065;</button>
+        </div>
         <button id="loginBtn" class="btn btn-primary">Sign in</button>
       </div>
 
