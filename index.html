@@ -33,6 +33,7 @@
       <button id="addBtn" class="btn btn-primary">+ Add Key</button>
       <button id="exportBtn" class="btn">Export</button>
       <button id="importBtn" class="btn">Import</button>
+      <button id="syncBtn" class="btn" title="Cloud sync">&#9729; Sync</button>
       <button id="themeBtn" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
       <button id="lockBtn" class="btn lock-btn" title="Lock">&#128274; Lock</button>
       <input type="file" id="importFile" accept="application/json" hidden />
@@ -56,7 +57,7 @@
   </div>
 
   <footer class="footer">
-    <span>&#128274; All data is stored locally in your browser (localStorage). Nothing is uploaded anywhere.</span>
+    <span>&#128274; Data stays in your browser. Enable <b>Sync</b> to back it up privately to your own GitHub Gist.</span>
     <button id="wipeBtn" class="link-danger">Delete all data</button>
   </footer>
 
@@ -126,6 +127,38 @@
       </div>
     </div>
   </div>
+
+  <div id="syncModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>Cloud Sync (GitHub Gist)</h2>
+      <p class="sync-info">
+        Your keys are saved in a <b>secret Gist</b> on your GitHub account, so you can open
+        this site from any device and see the same data. You need a GitHub token with
+        <b>gist</b> scope. The token stays only on this device.
+      </p>
+      <label class="check-row">
+        <input type="checkbox" id="syncEnabled" />
+        Enable cloud sync on this device
+      </label>
+      <label>GitHub token (gist scope)
+        <div class="key-input">
+          <input type="password" id="syncToken" placeholder="ghp_..." autocomplete="off" spellcheck="false" />
+          <button type="button" id="toggleSyncToken" class="eye">&#128065;</button>
+        </div>
+      </label>
+      <label>Gist ID (leave empty to create a new one)
+        <input type="text" id="syncGist" placeholder="e.g. 1a2b3c4d5e6f..." autocomplete="off" spellcheck="false" />
+      </label>
+      <p id="syncStatus" class="sync-status"></p>
+      <div class="modal-actions">
+        <button type="button" id="syncNowBtn" class="btn">Sync now</button>
+        <button type="button" id="syncCloseBtn" class="btn">Close</button>
+        <button type="button" id="syncSaveBtn" class="btn btn-primary">Save &amp; Sync</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
 
   <script src="app.js"></script>
 </body>

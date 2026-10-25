@@ -21,10 +21,22 @@ const BACKUP_CODE_HASHES = [
   "31a0c46f2b50962939a0efb0d483b0ec9753bfbc95764f9645b223a663781628",
 ];
 
+const SYNC_KEY = "api_key_vault_sync_v1";
+const GIST_FILENAME = "api-key-vault.json";
+
 const state = {
   keys: [],
+  updatedAt: 0,
   query: "",
   revealed: false,
+};
+
+const sync = {
+  enabled: false,
+  token: "",
+  gistId: "",
+  lastSync: 0,
+  busy: false,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -68,6 +80,16 @@ const els = {
   switchMode: $("#switchMode"),
   gateHint: $("#gateHint"),
   requestLink: $("#requestLink"),
+  syncBtn: $("#syncBtn"),
+  syncModal: $("#syncModal"),
+  syncEnabled: $("#syncEnabled"),
+  syncToken: $("#syncToken"),
+  syncGist: $("#syncGist"),
+  syncStatus: $("#syncStatus"),
+  syncSaveBtn: $("#syncSaveBtn"),
+  syncNowBtn: $("#syncNowBtn"),
+  syncCloseBtn: $("#syncCloseBtn"),
+  toggleSyncToken: $("#toggleSyncToken"),
   toast: $("#toast"),
 };
 
@@ -93,16 +115,32 @@ function toggleTheme() {
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    state.keys = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(state.keys)) state.keys = [];
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      state.keys = parsed;
+      state.updatedAt = 0;
+    } else {
+      state.keys = Array.isArray(parsed.keys) ? parsed.keys : [];
+      state.updatedAt = parsed.updatedAt || 0;
+    }
   } catch {
     state.keys = [];
   }
 }
 
+function persistLocal() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ updatedAt: state.updatedAt, keys: state.keys })
+  );
+}
+
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.keys));
+    state.updatedAt = Date.now();
+    persistLocal();
+    schedulePush();
     return true;
   } catch (e) {
     toast("Could not save. Storage may be full.", true);
@@ -465,10 +503,20 @@ async function tryBackupCode() {
   unlockVault("Unlocked with backup code");
 }
 
+let pollTimer;
 function unlockVault(msg) {
   sessionStorage.setItem("api_key_vault_unlocked", "1");
   hideGate();
   toast(msg);
+  startSyncPolling();
+}
+
+function startSyncPolling() {
+  if (!sync.enabled || !sync.token || pollTimer) return;
+  pullFromGist(true);
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === "visible") pullFromGist(true);
+  }, 60000);
 }
 
 function lockNow() {
@@ -504,10 +552,216 @@ function loadConsumedCodes() {
   } catch {}
 }
 
+function loadSyncConfig() {
+  try {
+    const raw = localStorage.getItem(SYNC_KEY);
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    sync.enabled = !!cfg.enabled;
+    sync.token = cfg.token || "";
+    sync.gistId = cfg.gistId || "";
+    sync.lastSync = cfg.lastSync || 0;
+  } catch {}
+}
+
+function saveSyncConfig() {
+  localStorage.setItem(
+    SYNC_KEY,
+    JSON.stringify({
+      enabled: sync.enabled,
+      token: sync.token,
+      gistId: sync.gistId,
+      lastSync: sync.lastSync,
+    })
+  );
+}
+
+function ghHeaders() {
+  return {
+    Authorization: "token " + sync.token,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+  };
+}
+
+function buildPayload() {
+  return {
+    app: "api-key-vault",
+    version: 1,
+    updatedAt: state.updatedAt,
+    keys: state.keys,
+  };
+}
+
+async function ghCreateGist(content) {
+  const res = await fetch("https://api.github.com/gists", {
+    method: "POST",
+    headers: ghHeaders(),
+    body: JSON.stringify({
+      description: "API Key Vault (private backup)",
+      public: false,
+      files: { [GIST_FILENAME]: { content } },
+    }),
+  });
+  if (!res.ok) throw new Error("create " + res.status);
+  return res.json();
+}
+
+async function ghUpdateGist(content) {
+  const res = await fetch(`https://api.github.com/gists/${sync.gistId}`, {
+    method: "PATCH",
+    headers: ghHeaders(),
+    body: JSON.stringify({ files: { [GIST_FILENAME]: { content } } }),
+  });
+  if (!res.ok) throw new Error("update " + res.status);
+  return res.json();
+}
+
+async function ghGetGist() {
+  const res = await fetch(`https://api.github.com/gists/${sync.gistId}`, {
+    headers: ghHeaders(),
+  });
+  if (!res.ok) throw new Error("read " + res.status);
+  return res.json();
+}
+
+async function pullFromGist(silent = false) {
+  if (!sync.enabled || !sync.token || !sync.gistId || sync.busy) return;
+  sync.busy = true;
+  updateSyncStatus("Syncing...");
+  try {
+    const gist = await ghGetGist();
+    const file = gist.files && gist.files[GIST_FILENAME];
+    let content = file ? file.content : "";
+    if (file && file.truncated && file.raw_url) {
+      content = await (await fetch(file.raw_url)).text();
+    }
+    if (!content) {
+      sync.busy = false;
+      await pushToGist(true);
+      return;
+    }
+    const remote = JSON.parse(content);
+    const remoteAt = remote.updatedAt || 0;
+    const localAt = state.updatedAt || 0;
+    if (remoteAt > localAt) {
+      state.keys = Array.isArray(remote.keys) ? remote.keys : [];
+      state.updatedAt = remoteAt;
+      persistLocal();
+      render();
+      if (!silent) toast("Synced from cloud");
+    } else if (localAt > remoteAt) {
+      sync.busy = false;
+      await pushToGist(true);
+      return;
+    }
+    sync.lastSync = Date.now();
+    saveSyncConfig();
+    updateSyncStatus("Synced");
+  } catch (e) {
+    updateSyncStatus("Sync failed");
+    if (!silent) toast("Cloud sync failed: " + e.message, true);
+  } finally {
+    sync.busy = false;
+  }
+}
+
+async function pushToGist(silent = false) {
+  if (!sync.enabled || !sync.token || sync.busy) return;
+  sync.busy = true;
+  updateSyncStatus("Saving...");
+  try {
+    const content = JSON.stringify(buildPayload(), null, 2);
+    if (!sync.gistId) {
+      const gist = await ghCreateGist(content);
+      sync.gistId = gist.id;
+    } else {
+      await ghUpdateGist(content);
+    }
+    sync.lastSync = Date.now();
+    saveSyncConfig();
+    updateSyncStatus("Synced");
+    if (!silent) toast("Saved to cloud");
+  } catch (e) {
+    updateSyncStatus("Sync failed");
+    if (!silent) toast("Cloud save failed: " + e.message, true);
+  } finally {
+    sync.busy = false;
+  }
+}
+
+let pushTimer;
+function schedulePush() {
+  if (!sync.enabled || !sync.token) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushToGist(true), 1500);
+}
+
+function updateSyncStatus(override) {
+  if (!els.syncStatus) return;
+  if (!sync.enabled) {
+    els.syncStatus.textContent = "Cloud sync is off. Data is local only.";
+    return;
+  }
+  if (override) {
+    els.syncStatus.textContent = override;
+    return;
+  }
+  if (!sync.token) {
+    els.syncStatus.textContent = "Add a GitHub token to enable sync.";
+    return;
+  }
+  const when = sync.lastSync
+    ? "Last sync: " + new Date(sync.lastSync).toLocaleString()
+    : "Not synced yet";
+  els.syncStatus.textContent = `${sync.gistId ? "Gist: " + sync.gistId : "No gist yet"} • ${when}`;
+}
+
+function openSyncModal() {
+  els.syncEnabled.checked = sync.enabled;
+  els.syncToken.value = sync.token;
+  els.syncGist.value = sync.gistId;
+  updateSyncStatus();
+  els.syncModal.hidden = false;
+}
+
+function closeSyncModal() {
+  els.syncModal.hidden = true;
+}
+
+async function applySyncSettings() {
+  sync.enabled = els.syncEnabled.checked;
+  sync.token = els.syncToken.value.trim();
+  sync.gistId = els.syncGist.value.trim();
+  saveSyncConfig();
+  if (!sync.enabled) {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    updateSyncStatus();
+    toast("Cloud sync turned off");
+    return;
+  }
+  if (!sync.token) {
+    updateSyncStatus();
+    toast("GitHub token is required", true);
+    return;
+  }
+  if (!sync.gistId) {
+    await pushToGist();
+  } else {
+    await pullFromGist();
+  }
+  startSyncPolling();
+  closeSyncModal();
+}
+
 function init() {
   initTheme();
   load();
   loadConsumedCodes();
+  loadSyncConfig();
   renderCategories();
   render();
   setupRequestLink();
@@ -546,6 +800,16 @@ function init() {
   els.exportBtn.addEventListener("click", exportData);
   els.themeBtn.addEventListener("click", toggleTheme);
   els.lockBtn.addEventListener("click", lockNow);
+  els.syncBtn.addEventListener("click", openSyncModal);
+  els.syncSaveBtn.addEventListener("click", applySyncSettings);
+  els.syncNowBtn.addEventListener("click", () => pushToGist());
+  els.syncCloseBtn.addEventListener("click", closeSyncModal);
+  els.toggleSyncToken.addEventListener("click", () => {
+    els.syncToken.type = els.syncToken.type === "password" ? "text" : "password";
+  });
+  els.syncModal.addEventListener("click", (e) => {
+    if (e.target === els.syncModal) closeSyncModal();
+  });
   els.importBtn.addEventListener("click", () => els.importFile.click());
   els.importFile.addEventListener("change", (e) => {
     const file = e.target.files[0];
@@ -572,7 +836,7 @@ function init() {
     if (state.keys.length === 0) return toast("No data to delete", true);
     if (confirm("Delete ALL saved API keys? This cannot be undone.")) {
       state.keys = [];
-      localStorage.removeItem(STORAGE_KEY);
+      save();
       renderCategories();
       render();
       toast("All data deleted");
@@ -580,6 +844,7 @@ function init() {
   });
 
   if (!isUnlocked()) showGate();
+  else if (sync.enabled && sync.token) startSyncPolling();
 }
 
 init();
