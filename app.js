@@ -88,6 +88,7 @@ const els = {
   syncStatus: $("#syncStatus"),
   syncSaveBtn: $("#syncSaveBtn"),
   syncNowBtn: $("#syncNowBtn"),
+  syncPullBtn: $("#syncPullBtn"),
   syncCloseBtn: $("#syncCloseBtn"),
   toggleSyncToken: $("#toggleSyncToken"),
   toast: $("#toast"),
@@ -625,7 +626,7 @@ async function ghGetGist() {
   return res.json();
 }
 
-async function pullFromGist(silent = false) {
+async function pullFromGist(silent = false, force = false) {
   if (!sync.enabled || !sync.token || !sync.gistId || sync.busy) return;
   sync.busy = true;
   updateSyncStatus("Syncing...");
@@ -642,15 +643,30 @@ async function pullFromGist(silent = false) {
       return;
     }
     const remote = JSON.parse(content);
+    const remoteKeys = Array.isArray(remote.keys) ? remote.keys : [];
     const remoteAt = remote.updatedAt || 0;
     const localAt = state.updatedAt || 0;
-    if (remoteAt > localAt) {
-      state.keys = Array.isArray(remote.keys) ? remote.keys : [];
-      state.updatedAt = remoteAt;
+    const localEmpty = state.keys.length === 0;
+    const remoteEmpty = remoteKeys.length === 0;
+
+    let adopt = false;
+    if (force) {
+      adopt = true;
+    } else if (localEmpty && !remoteEmpty) {
+      adopt = true;
+    } else if (remoteEmpty && !localEmpty) {
+      adopt = false;
+    } else {
+      adopt = remoteAt > localAt;
+    }
+
+    if (adopt && (force || !remoteEmpty || localEmpty)) {
+      state.keys = remoteKeys;
+      state.updatedAt = remoteAt || Date.now();
       persistLocal();
       render();
-      if (!silent) toast("Synced from cloud");
-    } else if (localAt > remoteAt) {
+      if (!silent) toast(remoteEmpty ? "Cloud is empty" : "Synced from cloud");
+    } else if (!adopt && localAt > remoteAt) {
       sync.busy = false;
       await pushToGist(true);
       return;
@@ -671,6 +687,8 @@ async function pushToGist(silent = false) {
   sync.busy = true;
   updateSyncStatus("Saving...");
   try {
+    if (!state.updatedAt) state.updatedAt = Date.now();
+    persistLocal();
     const content = JSON.stringify(buildPayload(), null, 2);
     if (!sync.gistId) {
       const gist = await ghCreateGist(content);
@@ -802,7 +820,15 @@ function init() {
   els.lockBtn.addEventListener("click", lockNow);
   els.syncBtn.addEventListener("click", openSyncModal);
   els.syncSaveBtn.addEventListener("click", applySyncSettings);
-  els.syncNowBtn.addEventListener("click", () => pushToGist());
+  els.syncNowBtn.addEventListener("click", () => {
+    if (!sync.enabled || !sync.token) return toast("Enable sync and add a token first", true);
+    pushToGist();
+  });
+  els.syncPullBtn.addEventListener("click", () => {
+    if (!sync.enabled || !sync.token || !sync.gistId)
+      return toast("Enable sync and add token + gist ID first", true);
+    pullFromGist(false, true);
+  });
   els.syncCloseBtn.addEventListener("click", closeSyncModal);
   els.toggleSyncToken.addEventListener("click", () => {
     els.syncToken.type = els.syncToken.type === "password" ? "text" : "password";
