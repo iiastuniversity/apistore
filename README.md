@@ -26,9 +26,14 @@ A single-page website to store all your API keys from different providers, copy 
 
 ## Login
 
-- Username: `admin`
-- Password: `owner@123` (change the hash in `ACCESS.adminHash` in `app.js`)
-- Backup codes: see `BACKUP-CODES.txt` (each works once)
+The admin password is **never stored in this repo**. Only its SHA-256 hash lives in
+`ACCESS.adminHash` in `app.js`. To change the password, replace that hash with the
+SHA-256 hash of your new password.
+
+> ⚠️ The sign-in screen is client-side only: it hides the UI but is **not real
+> security** — anyone can bypass it. Do not rely on it to protect secrets.
+
+> Backup codes stay in `BACKUP-CODES.txt`, which is git-ignored. Never commit it.
 
 ## Cloud sync setup (GitHub Gist)
 

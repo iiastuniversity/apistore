@@ -1,0 +1,22 @@
+API KEY VAULT — BACKUP CODES (PRIVATE! DO NOT UPLOAD/COMMIT)
+
+Admin login:
+  Username: admin
+  Password: owner@123   <-- change koro app.js er ACCESS.adminHash e
+
+Backup codes (each works ONLY ONCE):
+  VAULT-3669-9462
+  VAULT-3DFD-9E1F
+  VAULT-3632-F123
+  VAULT-4B62-D6B5
+  VAULT-FC25-C2DF
+  VAULT-7D76-4B57
+  VAULT-1008-4713
+  VAULT-9806-3F82
+  VAULT-3B0B-6CAB
+  VAULT-9AC8-9232
+
+Notes:
+- Ei code gulo hashed kore app.js e rakha hoyeche, tai code theke reverse kora jabe na.
+- Ekta code use korle seta fire ashe na (one-time).
+- Ei file ta kothao share/upload korio na. Notun code lagle amake bolo.
