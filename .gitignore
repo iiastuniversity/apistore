@@ -1,1 +1,9 @@
 BACKUP-CODES.txt
+
+
+# Never commit exported vault backups / key dumps
+api-keys-backup-*.json
+api_key_vault*.json
+keys.json
+*.key
+secrets.json
