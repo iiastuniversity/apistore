@@ -5,6 +5,7 @@ A single-page website to store all your API keys from different providers, copy 
 ## Features
 
 - Add, edit, delete API keys
+- Multiple **API keys** per entry, each with an optional label
 - Multiple **models** per key, each with a display name
 - Base URL field
 - Copy any key to clipboard with one click

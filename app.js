@@ -57,14 +57,15 @@ const els = {
   form: $("#form"),
   editId: $("#editId"),
   fName: $("#fName"),
-  fKey: $("#fKey"),
+  keyList: $("#keyList"),
+  addKeyRow: $("#addKeyRow"),
   modelList: $("#modelList"),
   addModelRow: $("#addModelRow"),
   fSite: $("#fSite"),
   fBaseUrl: $("#fBaseUrl"),
   fNotes: $("#fNotes"),
   cancelBtn: $("#cancelBtn"),
-  toggleFormKey: $("#toggleFormKey"),
+  closeModalBtn: $("#closeModalBtn"),
   themeBtn: $("#themeBtn"),
   lockBtn: $("#lockBtn"),
   lockScreen: $("#lockScreen"),
@@ -119,10 +120,12 @@ function load() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      state.keys = parsed;
+      state.keys = parsed.map(normalizeEntry);
       state.updatedAt = 0;
     } else {
-      state.keys = Array.isArray(parsed.keys) ? parsed.keys : [];
+      state.keys = Array.isArray(parsed.keys)
+        ? parsed.keys.map(normalizeEntry)
+        : [];
       state.updatedAt = parsed.updatedAt || 0;
     }
   } catch {
@@ -151,6 +154,47 @@ function save() {
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function normalizeKeyList(entry) {
+  if (!entry) return [];
+  let list = [];
+  if (Array.isArray(entry.keys)) {
+    list = entry.keys.map((k) =>
+      typeof k === "string"
+        ? { value: k.trim(), label: "" }
+        : {
+            value: String(k?.value ?? k?.key ?? "").trim(),
+            label: String(k?.label ?? "").trim(),
+          },
+    );
+  }
+  if (list.length === 0 && typeof entry.key === "string" && entry.key.trim()) {
+    list = [{ value: entry.key.trim(), label: "" }];
+  }
+  return list.filter((k) => k.value);
+}
+
+function normalizeEntry(entry) {
+  const item = entry && typeof entry === "object" ? entry : {};
+  const keys = normalizeKeyList(item);
+  let models = Array.isArray(item.models) ? item.models : [];
+  if (models.length === 0 && typeof item.model === "string" && item.model.trim()) {
+    models = [{ name: item.model.trim(), label: "" }];
+  }
+  return {
+    ...item,
+    id: item.id || uid(),
+    name: item.name || "Untitled",
+    keys,
+    // legacy mirror of the first key, kept so older copies still read the data
+    key: keys[0]?.value || "",
+    models,
+    site: item.site || "",
+    baseUrl: item.baseUrl || "",
+    notes: item.notes || "",
+    createdAt: item.createdAt || Date.now(),
+  };
 }
 
 function escapeHtml(str) {
@@ -205,7 +249,10 @@ function getFiltered() {
     const models = (k.models || [])
       .map((m) => `${m.name} ${m.label}`)
       .join(" ");
-    return [k.name, models, k.site, k.baseUrl, k.notes, k.key]
+    const keys = (k.keys || [])
+      .map((keyObj) => `${keyObj.value} ${keyObj.label}`)
+      .join(" ");
+    return [k.name, models, keys, k.site, k.baseUrl, k.notes]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
@@ -230,6 +277,19 @@ function render() {
             `<span class="model-chip"><b>${escapeHtml(m.name || "—")}</b>${m.label ? ` <span class="model-label">${escapeHtml(m.label)}</span>` : ""}</span>`,
         )
         .join("");
+      const keyBoxes = (k.keys || [])
+        .map(
+          (keyObj, i) => `
+          <div class="key-entry">
+            ${keyObj.label ? `<div class="key-entry-label">${escapeHtml(keyObj.label)}</div>` : ""}
+            <div class="key-box">
+              <span class="key-text ${shown ? "" : "hidden"}">${escapeHtml(shown ? keyObj.value : maskKey(keyObj.value))}</span>
+              <button class="icon-btn" data-action="toggle" data-index="${i}" title="Show/Hide">&#128065;</button>
+              <button class="icon-btn" data-action="copy" data-index="${i}" title="Copy">&#128203;</button>
+            </div>
+          </div>`,
+        )
+        .join("");
       return `
       <article class="card" data-id="${k.id}">
         <div class="card-head">
@@ -238,15 +298,11 @@ function render() {
             ${k.site ? `<div class="card-site">${escapeHtml(k.site)}</div>` : ""}
           </div>
           <div class="card-actions">
-            <button class="icon-btn" data-action="toggle" title="Show/Hide">&#128065;</button>
             <button class="icon-btn" data-action="edit" title="Edit">&#9998;</button>
             <button class="icon-btn" data-action="delete" title="Delete">&#128465;</button>
           </div>
         </div>
-        <div class="key-box">
-          <span class="key-text ${shown ? "" : "hidden"}" data-raw="${escapeHtml(k.key)}">${escapeHtml(shown ? k.key : maskKey(k.key))}</span>
-          <button class="icon-btn" data-action="copy" title="Copy">&#128203;</button>
-        </div>
+        ${keyBoxes ? `<div class="key-stack">${keyBoxes}</div>` : ""}
         ${modelChips ? `<div class="model-chips">&#129302; ${modelChips}</div>` : ""}
         ${k.baseUrl ? `<div class="card-baseurl">&#128279; <span>${escapeHtml(k.baseUrl)}</span></div>` : ""}
         ${k.notes ? `<div class="card-notes">${escapeHtml(k.notes)}</div>` : ""}
@@ -257,6 +313,34 @@ function render() {
   if (state.keys.length > 0 && items.length === 0) {
     els.list.innerHTML = `<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:40px 0">No keys match your search.</p>`;
   }
+}
+
+function addKeyRow(value = "", label = "") {
+  const row = document.createElement("div");
+  row.className = "key-row";
+  row.innerHTML = `
+    <div class="key-input">
+      <input type="text" class="key-value" placeholder="sk-..." autocomplete="off" spellcheck="false" value="${escapeHtml(value)}" />
+      <button type="button" class="eye toggle-key" title="Show/Hide">&#128065;</button>
+    </div>
+    <input type="text" class="key-label" placeholder="Label (optional, e.g. Primary)" value="${escapeHtml(label)}" />
+    <button type="button" class="icon-btn remove-key" title="Remove">&#128465;</button>`;
+  row.querySelector(".toggle-key").addEventListener("click", () => {
+    const input = row.querySelector(".key-value");
+    input.type = input.type === "password" ? "text" : "password";
+  });
+  row.querySelector(".remove-key").addEventListener("click", () => row.remove());
+  els.keyList.appendChild(row);
+  return row;
+}
+
+function readKeyRows() {
+  return [...els.keyList.querySelectorAll(".key-row")]
+    .map((row) => ({
+      value: row.querySelector(".key-value").value.trim(),
+      label: row.querySelector(".key-label").value.trim(),
+    }))
+    .filter((k) => k.value);
 }
 
 function addModelRow(name = "", label = "") {
@@ -284,23 +368,25 @@ function readModelRows() {
 function openModal(entry = null) {
   els.form.reset();
   els.modelList.innerHTML = "";
+  els.keyList.innerHTML = "";
   if (entry) {
     els.modalTitle.textContent = "Edit API Key";
     els.editId.value = entry.id;
     els.fName.value = entry.name;
-    els.fKey.value = entry.key;
     els.fSite.value = entry.site || "";
     els.fBaseUrl.value = entry.baseUrl || "";
     els.fNotes.value = entry.notes || "";
+    const keys = entry.keys && entry.keys.length ? entry.keys : [{}];
+    keys.forEach((k) => addKeyRow(k.value || "", k.label || ""));
     const models = entry.models || [];
     if (models.length === 0) addModelRow();
     else models.forEach((m) => addModelRow(m.name, m.label));
   } else {
     els.modalTitle.textContent = "Add API Key";
     els.editId.value = "";
+    addKeyRow();
     addModelRow();
   }
-  els.fKey.type = "text";
   els.modal.hidden = false;
   setTimeout(() => els.fName.focus(), 50);
 }
@@ -312,21 +398,33 @@ function closeModal() {
 function handleSubmit(e) {
   e.preventDefault();
   const id = els.editId.value;
+  const keys = readKeyRows();
   const data = {
     name: els.fName.value.trim(),
-    key: els.fKey.value.trim(),
+    keys,
+    key: keys[0]?.value || "",
     models: readModelRows(),
     site: els.fSite.value.trim(),
     baseUrl: els.fBaseUrl.value.trim(),
     notes: els.fNotes.value.trim(),
   };
-  if (!data.name || !data.key) return;
+  if (!data.name) {
+    els.fName.focus();
+    return toast("Name is required", true);
+  }
+  if (keys.length === 0) {
+    const first = els.keyList.querySelector(".key-value");
+    if (first) first.focus();
+    return toast("Add at least one API key", true);
+  }
 
   if (id) {
     const idx = state.keys.findIndex((k) => k.id === id);
-    if (idx !== -1) state.keys[idx] = { ...state.keys[idx], ...data };
+    if (idx !== -1) state.keys[idx] = normalizeEntry({ ...state.keys[idx], ...data });
   } else {
-    state.keys.unshift({ id: uid(), ...data, createdAt: Date.now() });
+    state.keys.unshift(
+      normalizeEntry({ id: uid(), ...data, createdAt: Date.now() }),
+    );
   }
 
   if (save()) {
@@ -346,14 +444,17 @@ function onListClick(e) {
   if (!entry) return;
 
   const action = btn.dataset.action;
+  const keyObj = entry.keys ? entry.keys[Number(btn.dataset.index || 0)] : null;
   if (action === "copy") {
-    copyText(entry.key).then((ok) =>
+    if (!keyObj) return;
+    copyText(keyObj.value).then((ok) =>
       toast(ok ? "API key copied!" : "Copy failed", !ok),
     );
   } else if (action === "toggle") {
-    const span = card.querySelector(".key-text");
+    if (!keyObj) return;
+    const span = btn.closest(".key-box").querySelector(".key-text");
     const isHidden = span.classList.toggle("hidden");
-    span.textContent = isHidden ? maskKey(entry.key) : entry.key;
+    span.textContent = isHidden ? maskKey(keyObj.value) : keyObj.value;
   } else if (action === "edit") {
     openModal(entry);
   } else if (action === "delete") {
@@ -371,7 +472,7 @@ function exportData() {
   if (state.keys.length === 0) return toast("Nothing to export", true);
   const payload = {
     app: "api-key-vault",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     keys: state.keys,
   };
@@ -397,25 +498,17 @@ function importData(file) {
 
       let added = 0;
       incoming.forEach((item) => {
-        if (!item || !item.key) return;
+        if (!item) return;
+        const normalized = normalizeEntry(item);
+        if (normalized.keys.length === 0) return;
         const exists = state.keys.some(
-          (k) => k.key === item.key && k.name === item.name,
+          (k) =>
+            k.name === normalized.name &&
+            k.keys.length === normalized.keys.length &&
+            k.keys.every((keyObj, i) => keyObj.value === normalized.keys[i].value),
         );
         if (exists) return;
-        state.keys.push({
-          id: item.id || uid(),
-          name: item.name || "Untitled",
-          key: item.key,
-          models: Array.isArray(item.models)
-            ? item.models
-            : item.model
-              ? [{ name: item.model, label: "" }]
-              : [],
-          site: item.site || "",
-          baseUrl: item.baseUrl || "",
-          notes: item.notes || "",
-          createdAt: item.createdAt || Date.now(),
-        });
+        state.keys.push(normalized);
         added++;
       });
 
@@ -588,7 +681,7 @@ function ghHeaders() {
 function buildPayload() {
   return {
     app: "api-key-vault",
-    version: 1,
+    version: 2,
     updatedAt: state.updatedAt,
     keys: state.keys,
   };
@@ -661,7 +754,7 @@ async function pullFromGist(silent = false, force = false) {
     }
 
     if (adopt && (force || !remoteEmpty || localEmpty)) {
-      state.keys = remoteKeys;
+      state.keys = remoteKeys.map(normalizeEntry);
       state.updatedAt = remoteAt || Date.now();
       persistLocal();
       render();
@@ -785,18 +878,22 @@ function init() {
   setupRequestLink();
 
   els.addBtn.addEventListener("click", () => openModal());
+  els.addKeyRow.addEventListener("click", () => {
+    const row = addKeyRow();
+    row.querySelector(".key-value").focus();
+  });
   els.addModelRow.addEventListener("click", () => {
     addModelRow();
     const rows = els.modelList.querySelectorAll(".model-row");
     rows[rows.length - 1].querySelector(".model-name").focus();
   });
   els.cancelBtn.addEventListener("click", closeModal);
+  els.closeModalBtn.addEventListener("click", closeModal);
   els.form.addEventListener("submit", handleSubmit);
   els.list.addEventListener("click", onListClick);
 
-  els.modal.addEventListener("click", (e) => {
-    if (e.target === els.modal) closeModal();
-  });
+  // The entry modal only closes from the close icon, Cancel or Escape.
+  // A stray click on the dark background no longer throws away typed data.
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.modal.hidden) closeModal();
   });
@@ -809,10 +906,6 @@ function init() {
   els.toggleKeys.addEventListener("click", () => {
     state.revealed = !state.revealed;
     render();
-  });
-
-  els.toggleFormKey.addEventListener("click", () => {
-    els.fKey.type = els.fKey.type === "password" ? "text" : "password";
   });
 
   els.exportBtn.addEventListener("click", exportData);

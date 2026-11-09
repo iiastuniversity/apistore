@@ -63,17 +63,18 @@
 
   <div id="modal" class="modal-overlay" hidden>
     <div class="modal">
-      <h2 id="modalTitle">Add API Key</h2>
+      <div class="modal-head">
+        <h2 id="modalTitle">Add API Key</h2>
+        <button type="button" id="closeModalBtn" class="modal-close" title="Close" aria-label="Close">&#10005;</button>
+      </div>
       <form id="form">
         <input type="hidden" id="editId" />
         <label>Name *
           <input type="text" id="fName" placeholder="e.g. OpenAI Production" required />
         </label>
-        <label>API Key *
-          <div class="key-input">
-            <input type="text" id="fKey" placeholder="sk-..." required autocomplete="off" spellcheck="false" />
-            <button type="button" id="toggleFormKey" class="eye">&#128065;</button>
-          </div>
+        <label>API Keys *
+          <div id="keyList" class="key-list"></div>
+          <button type="button" id="addKeyRow" class="btn add-model-btn">+ Add Another Key</button>
         </label>
         <label>Model &amp; Display Name
           <div id="modelList" class="model-list"></div>
